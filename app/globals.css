@@ -165,7 +165,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible {
 .movement-form-exit .form-field input:focus,
 .movement-form-exit .form-field select:focus,
 .movement-form-exit .form-field textarea:focus { border-color: #b77969; box-shadow: 0 0 0 3px rgb(188 97 75 / 10%); }
-.movement-form-exit .quantity-input-wrap input { direction: ltr; text-align: start; padding-inline-end: 62px; }
+.movement-form-exit .quantity-input-wrap input { direction: ltr; text-align: start; }
 .movement-form-exit .form-field textarea { min-height: 100px; }
 .movement-form-exit .form-submit { min-height: 52px; justify-self: start; min-width: 190px; margin-top: 0; border-radius: 10px; }
 .movement-form-exit .form-submit:disabled { cursor: wait; opacity: 0.76; transform: none; }
@@ -179,7 +179,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible {
 .movement-form-entry .form-field input:focus,
 .movement-form-entry .form-field select:focus,
 .movement-form-entry .form-field textarea:focus { border-color: #6c9b82; box-shadow: 0 0 0 3px rgb(37 133 100 / 11%); }
-.movement-form-entry .quantity-input-wrap input { direction: ltr; text-align: start; padding-inline-end: 62px; }
+.movement-form-entry .quantity-input-wrap input { direction: ltr; text-align: start; }
 .movement-form-entry .form-field textarea { min-height: 100px; }
 .movement-form-entry .form-submit { min-height: 52px; justify-self: start; min-width: 190px; margin-top: 0; border-radius: 10px; }
 .movement-form-entry .form-submit:disabled { cursor: wait; opacity: 0.76; transform: none; }
@@ -211,9 +211,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible {
 .product-created-notice button { border: 0; background: transparent; color: inherit; font-size: 20px; cursor: pointer; }
 .button-secondary { border: 1px solid #dce3e9; background: #fff; color: #35485c; }
 .button-secondary:hover { background: #f2f5f6; }
-.quantity-input-wrap { position: relative; }
-.quantity-input-wrap input { padding-inline-end: 62px; }
-.quantity-input-wrap > span { position: absolute; top: 50%; inset-inline-end: 15px; color: #7c8997; font-size: 13px; transform: translateY(-50%); }
+.quantity-input-wrap { display: flex; align-items: center; gap: 12px; direction: rtl; }
+.quantity-input-wrap input { flex: 1; min-width: 0; width: 100%; direction: ltr; text-align: left; }
+.quantity-input-wrap > span { position: static; flex: 0 0 auto; direction: rtl; unicode-bidi: isolate; color: #7c8997; font-size: 13px; white-space: nowrap; }
 .form-submit { min-height: 56px; margin-top: 3px; font-size: 16px; }
 .form-message { margin: 0; border-radius: 8px; padding: 13px 15px; font-size: 14px; font-weight: 700; }
 .form-message-success { border: 1px solid #cce7d7; background: #eff9f2; color: #21734f; }
