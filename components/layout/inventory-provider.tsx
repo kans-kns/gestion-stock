@@ -56,8 +56,13 @@ interface RefreshInventoryOptions {
 }
 
 export class InventoryRefreshAfterResetError extends Error {
-  constructor() {
-    super("تمت إعادة تعيين المخزون، لكن تعذّر تحديث البيانات المعروضة. يُرجى إعادة تحميل الصفحة.");
+  constructor(refreshError: unknown) {
+    const details = refreshError instanceof Error
+      ? refreshError.message
+      : getInventoryErrorMessage(refreshError);
+    super(
+      `تمت إعادة تعيين المخزون، لكن تعذّر تحديث البيانات المعروضة: ${details} يُرجى إعادة تحميل الصفحة.`,
+    );
     this.name = "InventoryRefreshAfterResetError";
   }
 }
@@ -184,8 +189,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     const result = await resetInventoryData();
     try {
       await refreshInventory({ throwOnError: true });
-    } catch {
-      throw new InventoryRefreshAfterResetError();
+    } catch (refreshError) {
+      throw new InventoryRefreshAfterResetError(refreshError);
     }
     return result;
   }, [refreshInventory]);

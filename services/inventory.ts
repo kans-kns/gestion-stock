@@ -89,6 +89,31 @@ function toErrorMessage(error: unknown, action: string): string {
     return "يلزم تطبيق migration 007 محليًا على قاعدة البيانات لإضافة أعمدة الفئات والبيانات التفصيلية، ثم تحديث مخطط Supabase.";
   }
 
+  if (normalizedMessage.includes("only managers can reset inventory")) {
+    return "لا تملك صلاحية إعادة تعيين المخزون. هذه العملية متاحة للمدير فقط.";
+  }
+  if (
+    normalizedMessage.includes("authentication is required")
+    || code === "28000"
+  ) {
+    return "يجب تسجيل الدخول لإعادة تعيين المخزون.";
+  }
+  if (code === "401" || code === "PGRST301") {
+    return "انتهت صلاحية الجلسة. سجّل الدخول مجددًا ثم أعد المحاولة.";
+  }
+  if (code === "42501") {
+    if (
+      normalizedMessage.includes("permission denied for function")
+      && normalizedMessage.includes("reset_inventory")
+    ) {
+      return "لا تسمح صلاحيات قاعدة البيانات بتنفيذ إعادة التعيين. تحقّق من grants الدالة reset_inventory في قاعدة البيانات.";
+    }
+    return "رفضت قاعدة البيانات العملية بسبب الصلاحيات. إذا كان حسابك مديرًا، تحقّق من صلاحيات الدالة reset_inventory.";
+  }
+  if (code === "PGRST202") {
+    return "تعذر العثور على الدالة reset_inventory في مخطط Supabase. تحقّق من migrations المطبقة وتحديث مخطط API.";
+  }
+
   if (
     message.startsWith("تعذر ")
     || message.startsWith("الكمية المطلوبة أكبر من المخزون المتوفر")
@@ -103,15 +128,6 @@ function toErrorMessage(error: unknown, action: string): string {
     || message.startsWith("لا يمكن حذف المنتجات")
   ) {
     return message;
-  }
-  if (code === "42501" || code === "401" || code === "PGRST301") {
-    return "انتهت صلاحية الجلسة أو لا تملك الصلاحية اللازمة. سجّل الدخول مجددًا.";
-  }
-  if (normalizedMessage.includes("only managers can reset inventory")) {
-    return "لا تملك صلاحية إعادة تعيين المخزون. هذه العملية متاحة للمدير فقط.";
-  }
-  if (normalizedMessage.includes("authentication is required")) {
-    return "يجب تسجيل الدخول لإعادة تعيين المخزون.";
   }
   if (code === "23505") {
     return "يوجد منتج بالمرجع أو البيانات نفسها.";
@@ -155,6 +171,17 @@ function toErrorMessage(error: unknown, action: string): string {
 
 export function getInventoryErrorMessage(error: unknown, action = "تحميل بيانات المخزون"): string {
   return toErrorMessage(error, action);
+}
+
+export async function isCurrentUserManager(): Promise<boolean> {
+  const supabase = createBrowserSupabase();
+  const { data, error } = await supabase.rpc("is_manager");
+
+  if (error) throw new Error(toErrorMessage(error, "التحقق من صلاحية المدير"));
+  if (typeof data !== "boolean") {
+    throw new Error("لم تُرجع قاعدة البيانات نتيجة صالحة للتحقق من صلاحية المدير.");
+  }
+  return data;
 }
 
 function mapProduct(row: ProductRow): Product {
