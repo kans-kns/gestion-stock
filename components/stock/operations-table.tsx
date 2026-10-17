@@ -35,12 +35,20 @@ export function OperationsTable({
         <tbody>
           {rows.map((operation) => {
             const product = products.find((item) => item.id === operation.productId);
+            const productDetails = product?.category === "أتاي"
+              ? [product.brand, product.format].filter(Boolean)
+              : [product?.sku, product?.garmentType, product?.size, product?.color].filter(Boolean);
             const isEntry = operation.type === "entry";
             return (
               <tr key={operation.id}>
                 <td className="operation-reference" dir="ltr">{operation.reference}</td>
                 <td><span className={`operation-badge ${isEntry ? "badge-entry" : "badge-exit"}`}>{isEntry ? "مدخل" : "مخرج"}</span></td>
-                <td className="operation-product" dir="auto">{product?.name ?? "منتج غير معروف"}</td>
+                <td className="operation-product" dir="auto">
+                  <strong>{product?.name ?? "منتج غير معروف"}</strong>
+                  {product && (
+                    <small>{[product.category, ...productDetails, product.unit].filter(Boolean).join(" · ")}</small>
+                  )}
+                </td>
                 <td className={`operation-quantity ${isEntry ? "quantity-entry" : "quantity-exit"}`} dir="ltr">
                   {isEntry ? "+" : "−"}{formatQuantity(operation.quantity)}
                 </td>

@@ -11,17 +11,24 @@ import {
   type ReactNode,
 } from "react";
 import {
-  createProduct as saveProduct,
   createStockMovement as saveStockMovement,
+  createProduct as saveProduct,
   getInventoryErrorMessage,
   loadMovements,
   loadProductStocks,
   loadProducts,
   resetInventory as resetInventoryData,
+  updateProduct as saveProductChanges,
   type ResetInventoryResult,
 } from "@/services/inventory";
 import { createBrowserSupabase } from "@/lib/supabase/client";
-import type { InventoryOperation, MovementType, Product, ProductStock } from "@/types/inventory";
+import type {
+  InventoryOperation,
+  MovementType,
+  Product,
+  ProductInput,
+  ProductStock,
+} from "@/types/inventory";
 
 interface MovementInput {
   type: MovementType;
@@ -31,17 +38,6 @@ interface MovementInput {
   note: string;
 }
 
-interface ProductInput {
-  name: string;
-  unit: string;
-  lowStockThreshold: number;
-  sku?: string;
-}
-
-type AddProductResult =
-  | { success: true; product: Product }
-  | { success: false; error: string };
-
 interface InventoryContextValue {
   products: Product[];
   productStocks: ProductStock[];
@@ -49,11 +45,10 @@ interface InventoryContextValue {
   isLoading: boolean;
   error: string | null;
   refreshInventory: () => Promise<void>;
+  addProduct: (input: ProductInput) => Promise<Product>;
+  updateProduct: (id: string, input: ProductInput) => Promise<Product>;
   addMovement: (input: MovementInput) => Promise<string | null>;
-  addProduct: (input: ProductInput) => Promise<AddProductResult>;
   resetInventory: () => Promise<ResetInventoryResult>;
-  productCreatedNotice: string | null;
-  clearProductCreatedNotice: () => void;
 }
 
 interface RefreshInventoryOptions {
@@ -75,7 +70,6 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [operations, setOperations] = useState<InventoryOperation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [productCreatedNotice, setProductCreatedNotice] = useState<string | null>(null);
   const refreshRequest = useRef(0);
 
   const refreshInventory = useCallback(async ({ throwOnError = false }: RefreshInventoryOptions = {}) => {
@@ -119,7 +113,6 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           setProducts([]);
           setProductStocks([]);
           setOperations([]);
-          setProductCreatedNotice(null);
           setError(null);
           setIsLoading(false);
           return;
@@ -154,41 +147,6 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshInventory]);
 
-  const addProduct = useCallback(async (input: ProductInput): Promise<AddProductResult> => {
-    const name = input.name.trim();
-    const unit = input.unit.trim();
-    const sku = input.sku?.trim() || undefined;
-
-    if (!name) return { success: false, error: "يرجى إدخال اسم المنتج." };
-    if (!unit) return { success: false, error: "يرجى إدخال الوحدة." };
-    if (!Number.isSafeInteger(input.lowStockThreshold) || input.lowStockThreshold < 0) {
-      return { success: false, error: "حد التنبيه يجب أن يكون رقمًا صحيحًا يساوي صفرًا أو أكبر." };
-    }
-    if (products.some((product) => product.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
-      return { success: false, error: "توجد سلعة بهذا الاسم بالفعل." };
-    }
-    if (sku && products.some((product) => product.sku?.trim().toLocaleLowerCase() === sku.toLocaleLowerCase())) {
-      return { success: false, error: "رمز المنتج مستخدم من قبل." };
-    }
-
-    try {
-      const product = await saveProduct({
-        name,
-        unit,
-        lowStockThreshold: input.lowStockThreshold,
-        sku,
-      });
-      setProductCreatedNotice("تمت إضافة المنتج بنجاح.");
-      await refreshInventory();
-      return { success: true, product };
-    } catch (saveError) {
-      return {
-        success: false,
-        error: getInventoryErrorMessage(saveError, "إضافة المنتج"),
-      };
-    }
-  }, [products, refreshInventory]);
-
   const addMovement = useCallback(async (input: MovementInput): Promise<string | null> => {
     if (!Number.isSafeInteger(input.quantity) || input.quantity <= 0) {
       return "يرجى إدخال كمية صحيحة أكبر من صفر.";
@@ -210,9 +168,20 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     }
   }, [productStocks, refreshInventory]);
 
+  const addProduct = useCallback(async (input: ProductInput): Promise<Product> => {
+    const product = await saveProduct(input);
+    await refreshInventory();
+    return product;
+  }, [refreshInventory]);
+
+  const updateProduct = useCallback(async (id: string, input: ProductInput): Promise<Product> => {
+    const product = await saveProductChanges(id, input);
+    await refreshInventory();
+    return product;
+  }, [refreshInventory]);
+
   const resetInventory = useCallback(async (): Promise<ResetInventoryResult> => {
     const result = await resetInventoryData();
-    setProductCreatedNotice(null);
     try {
       await refreshInventory({ throwOnError: true });
     } catch {
@@ -228,11 +197,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     refreshInventory,
-    addMovement,
     addProduct,
+    updateProduct,
+    addMovement,
     resetInventory,
-    productCreatedNotice,
-    clearProductCreatedNotice: () => setProductCreatedNotice(null),
   }), [
     products,
     productStocks,
@@ -240,10 +208,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     isLoading,
     error,
     refreshInventory,
-    addMovement,
     addProduct,
+    updateProduct,
+    addMovement,
     resetInventory,
-    productCreatedNotice,
   ]);
 
   return (

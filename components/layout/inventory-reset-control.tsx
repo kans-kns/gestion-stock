@@ -108,8 +108,8 @@ export function InventoryResetControl() {
 
       {success && (
         <p className="form-message form-message-success admin-reset-success" role="status">
-          تمت إعادة تعيين المخزون بنجاح. حُذفت {formatCount(success.deletedProducts)} منتجات و
-          {" "}{formatCount(success.deletedMovements)} حركة.
+          تمت إعادة تعيين المخزون بنجاح. حُذفت {formatCount(success.deletedMovements)} حركة، وتم الإبقاء على
+          {" "}{formatCount(success.preservedProducts)} منتجًا.
           <button
             aria-label="إغلاق رسالة النجاح"
             onClick={() => setSuccess(null)}
@@ -143,8 +143,8 @@ export function InventoryResetControl() {
         <section className="inventory-reset-card" dir="rtl" role="document">
           <h2 id="inventory-reset-title">تأكيد إعادة تعيين المخزون</h2>
           <p>
-            سيؤدي هذا الإجراء إلى حذف جميع المنتجات وجميع حركات وسجل المخزون.
-            لن تُحذف حسابات المستخدمين أو ملفاتهم الشخصية أو إعدادات التطبيق.
+            سيؤدي هذا الإجراء إلى حذف حركات المخزون لجميع المنتجات مع الإبقاء على المنتجات وبياناتها في القائمة.
+            لن تُحذف حسابات المستخدمين أو ملفاتهم الشخصية.
             لا يمكن التراجع عن هذا الإجراء.
           </p>
 

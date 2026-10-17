@@ -4,54 +4,53 @@ import Link from "next/link";
 import { useState } from "react";
 import { useInventory } from "@/components/layout/inventory-provider";
 import { FilterField, SearchField } from "@/components/stock/filter-controls";
-import { formatQuantity } from "@/services/inventory";
+import { formatQuantity, getProductSearchText } from "@/services/inventory";
+import { productCategories, type ProductCategory } from "@/types/inventory";
 import { Icon } from "@/components/ui/icon";
 
 type ProductStatus = "all" | "active" | "inactive" | "low";
+
+type CategoryFilter = "all" | ProductCategory;
 
 function isProductStatus(value: string): value is ProductStatus {
   return value === "all" || value === "active" || value === "inactive" || value === "low";
 }
 
+function isCategoryFilter(value: string): value is CategoryFilter {
+  return value === "all" || productCategories.some((category) => category === value);
+}
+
 export default function ProduitsPage() {
   const {
     productStocks,
-    productCreatedNotice,
-    clearProductCreatedNotice,
     isLoading,
     error,
     refreshInventory,
   } = useInventory();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<ProductStatus>("all");
+  const [category, setCategory] = useState<CategoryFilter>("all");
 
   const searchTerm = search.trim().toLocaleLowerCase();
   const filteredProducts = productStocks.filter((product) => {
-    const matchesSearch = !searchTerm
-      || `${product.name} ${product.unit ?? ""}`.toLocaleLowerCase().includes(searchTerm);
+    const matchesSearch = !searchTerm || getProductSearchText(product).toLocaleLowerCase().includes(searchTerm);
+    const matchesCategory = category === "all" || product.category === category;
     const isActive = product.active !== false;
     const matchesStatus = status === "all"
       || (status === "active" && isActive)
       || (status === "inactive" && !isActive)
       || (status === "low" && isActive && product.stock <= product.lowStockThreshold);
-    return matchesSearch && matchesStatus;
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
   return (
     <section className="inventory-page">
       <div className="page-heading">
-        <div><h1>المنتجات</h1><p>إدارة المنتجات ومتابعة حالتها في المخزون</p></div>
+        <div><h1>المنتجات</h1><p>إدارة منتجات أتاي والحوايج ومتابعة أرصدتها</p></div>
         <Link className="button button-entry" href="/ajouter-produit">
-          <Icon name="package" size={18} />
-          إضافة منتج
+          <Icon name="package" size={17} /> إضافة منتج
         </Link>
       </div>
-      {productCreatedNotice && (
-        <div className="form-message form-message-success product-created-notice" role="status">
-          <span>{productCreatedNotice}</span>
-          <button aria-label="إغلاق رسالة النجاح" onClick={clearProductCreatedNotice} type="button">×</button>
-        </div>
-      )}
       <div className="product-filter-panel">
         <div className="product-search-field">
           <Icon aria-hidden="true" name="search" size={19} />
@@ -77,11 +76,23 @@ export default function ProduitsPage() {
               <option value="low">المخزون منخفض</option>
             </select>
           </FilterField>
+          <FilterField label="فئة المنتج">
+            <select
+              onChange={(event) => {
+                if (isCategoryFilter(event.target.value)) setCategory(event.target.value);
+              }}
+              value={category}
+            >
+              <option value="all">كل الفئات</option>
+              {productCategories.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          </FilterField>
         <button
           className="clear-filters-button"
           onClick={() => {
             setSearch("");
             setStatus("all");
+            setCategory("all");
           }}
           type="button"
         >
@@ -125,7 +136,10 @@ export default function ProduitsPage() {
           </div>
         ) : filteredProducts.map((product) => {
           const isLow = product.stock <= product.lowStockThreshold;
-          const unit = product.unit || "طرد";
+          const unit = product.unit || (product.category === "أتاي" ? "كرتون" : "قطعة");
+          const details = product.category === "أتاي"
+            ? [product.brand, product.format].filter(Boolean).join(" · ")
+            : [product.sku, product.garmentType, product.size, product.color].filter(Boolean).join(" · ");
           return (
             <article className="product-card simple-card" key={product.id}>
               <div className="product-card-header">
@@ -139,8 +153,9 @@ export default function ProduitsPage() {
                 </span>
               </div>
               <div className="product-name">
+                <small className="product-category">{product.category}</small>
                 <strong dir="auto">{product.name}</strong>
-                {product.sku && <small className="product-sku" dir="ltr">SKU: {product.sku}</small>}
+                {details && <small className="product-metadata" dir="auto">{details}</small>}
               </div>
               <div className="product-stock-summary">
                 <div className="product-stock">
@@ -153,6 +168,9 @@ export default function ProduitsPage() {
                 </div>
               </div>
               <div className="product-actions">
+                <Link className="button button-secondary button-small" href={`/produits/${product.id}`}>
+                  تعديل
+                </Link>
                 <Link className="button button-entry button-small" href="/entrees">
                   <Icon name="arrowDown" size={15} /> مدخل
                 </Link>
@@ -166,10 +184,10 @@ export default function ProduitsPage() {
         {!isLoading && !error && filteredProducts.length === 0 && (
           <div className="product-empty-state">
             <span className="product-empty-icon" aria-hidden="true"><Icon name={productStocks.length === 0 ? "package" : "search"} size={22} /></span>
-            <strong>{productStocks.length === 0 && !search && status === "all" ? "لا توجد منتجات" : "لا توجد نتائج"}</strong>
+            <strong>{productStocks.length === 0 && !search && status === "all" && category === "all" ? "لا توجد منتجات" : "لا توجد نتائج"}</strong>
             <p>
-              {productStocks.length === 0 && !search && status === "all"
-                ? "أضف منتجاتك لتبدأ بمتابعة المخزون."
+              {productStocks.length === 0 && !search && status === "all" && category === "all"
+                ? "أضف منتجًا من إحدى الفئتين للبدء."
                 : "جرّب تعديل كلمات البحث أو الفلاتر."}
             </p>
           </div>

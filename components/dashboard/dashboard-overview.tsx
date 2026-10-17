@@ -5,6 +5,7 @@ import { useInventory } from "@/components/layout/inventory-provider";
 import { OperationsTable } from "@/components/stock/operations-table";
 import { Icon, type IconName } from "@/components/ui/icon";
 import { formatQuantity, getDashboardSummary } from "@/services/inventory";
+import { productCategories } from "@/types/inventory";
 
 type MetricTone = "entry" | "exit" | "warning";
 
@@ -76,12 +77,9 @@ function DashboardLoadingState() {
 export function DashboardOverview() {
   const { products, productStocks, operations, isLoading, error, refreshInventory } = useInventory();
   const summary = getDashboardSummary(productStocks, operations);
-  const totalIncoming = operations
-    .filter((operation) => operation.type === "entry")
-    .reduce((total, operation) => total + operation.quantity, 0);
-  const totalOutgoing = operations
-    .filter((operation) => operation.type === "exit")
-    .reduce((total, operation) => total + operation.quantity, 0);
+  const categoryUnits = productCategories.flatMap((category) =>
+    summary.byCategory[category].map((item) => ({ category, ...item })),
+  );
   const lowStockProducts = productStocks.filter(
     (product) => product.stock <= product.lowStockThreshold,
   );
@@ -145,29 +143,40 @@ export function DashboardOverview() {
                 <span className="dashboard-stock-context">نظرة المخزون</span>
               </div>
               <div className="dashboard-stock-copy">
-                <span className="dashboard-stock-label">إجمالي المخزون الحالي</span>
-                <div className="dashboard-stock-total">
-                  <strong dir="ltr">{formatQuantity(summary.currentStock)}</strong>
-                  <span>وحدة في المخزون</span>
+                <span className="dashboard-stock-label">الأرصدة حسب الفئة والوحدة</span>
+                <div className="dashboard-category-stock-list">
+                  {categoryUnits.map((item) => (
+                    <div className="dashboard-category-stock-row" key={`${item.category}-${item.unit}`}>
+                      <span>{item.category} · {item.unit}</span>
+                      <strong dir="ltr">{formatQuantity(item.currentStock)}</strong>
+                    </div>
+                  ))}
+                  {categoryUnits.length === 0 && <p>لا توجد منتجات في المخزون.</p>}
                 </div>
-                <p>إجمالي الكمية المتاحة حاليًا في جميع المنتجات</p>
+                <p>تُعرض الأرصدة منفصلة عندما تختلف الفئة أو وحدة القياس.</p>
               </div>
               <span className="dashboard-stock-decoration" aria-hidden="true" />
             </article>
 
-            <div className="dashboard-metric-grid" aria-label="حركة المخزون وتنبيهات اليوم">
-              <MetricCard
-                icon="arrowDown"
-                label="المداخل اليوم"
-                tone="entry"
-                value={summary.incomingToday}
-              />
-              <MetricCard
-                icon="arrowUp"
-                label="المخارج اليوم"
-                tone="exit"
-                value={summary.outgoingToday}
-              />
+            <div className="dashboard-metric-grid" aria-label="حركة المخزون حسب الفئة والوحدة وتنبيهات اليوم">
+              {categoryUnits.map((item) => (
+                <MetricCard
+                  icon="arrowDown"
+                  key={`${item.category}-${item.unit}-entry-today`}
+                  label={`مدخلات اليوم · ${item.category} · ${item.unit}`}
+                  tone="entry"
+                  value={item.incomingToday}
+                />
+              ))}
+              {categoryUnits.map((item) => (
+                <MetricCard
+                  icon="arrowUp"
+                  key={`${item.category}-${item.unit}-exit-today`}
+                  label={`مخرجات اليوم · ${item.category} · ${item.unit}`}
+                  tone="exit"
+                  value={item.outgoingToday}
+                />
+              ))}
               <MetricCard
                 icon="alert"
                 label="منتجات منخفضة المخزون"
@@ -177,20 +186,28 @@ export function DashboardOverview() {
             </div>
           </section>
 
-          <section className="dashboard-secondary-stats" aria-label="إجمالي حركة المخزون">
-            <MetricCard
-              icon="arrowDown"
-              label="إجمالي المداخل"
-              tone="entry"
-              value={totalIncoming}
-            />
-            <MetricCard
-              icon="arrowUp"
-              label="إجمالي المخارج"
-              tone="exit"
-              value={totalOutgoing}
-            />
-          </section>
+          {categoryUnits.length > 0 && (
+            <section className="dashboard-secondary-stats" aria-label="إجمالي حركة المخزون حسب الفئة والوحدة">
+              {categoryUnits.map((item) => (
+                <MetricCard
+                  icon="arrowDown"
+                  key={`${item.category}-${item.unit}-entry-total`}
+                  label={`إجمالي المداخل · ${item.category} · ${item.unit}`}
+                  tone="entry"
+                  value={item.totalIncoming}
+                />
+              ))}
+              {categoryUnits.map((item) => (
+                <MetricCard
+                  icon="arrowUp"
+                  key={`${item.category}-${item.unit}-exit-total`}
+                  label={`إجمالي المخارج · ${item.category} · ${item.unit}`}
+                  tone="exit"
+                  value={item.totalOutgoing}
+                />
+              ))}
+            </section>
+          )}
 
           <section className="dashboard-quick-actions" aria-labelledby="dashboard-actions-title">
             <div className="dashboard-section-heading dashboard-actions-heading">
@@ -200,13 +217,6 @@ export function DashboardOverview() {
               </div>
             </div>
             <div className="dashboard-action-list">
-              <Link className="dashboard-action dashboard-action-product" href="/ajouter-produit">
-                <span className="dashboard-action-icon" aria-hidden="true">
-                  <Icon name="package" size={20} />
-                </span>
-                <span>إضافة منتج</span>
-                <Icon className="dashboard-action-arrow" name="arrowRight" size={17} />
-              </Link>
               <Link className="dashboard-action dashboard-action-entry" href="/entrees">
                 <span className="dashboard-action-icon" aria-hidden="true">
                   <Icon name="arrowDown" size={20} />
@@ -283,13 +293,13 @@ export function DashboardOverview() {
                         <span className="dashboard-low-stock-product-copy">
                           <strong dir="auto">{product.name}</strong>
                           <small>
-                            حد التنبيه: {formatQuantity(product.lowStockThreshold)} {product.unit || "طرد"}
+                            حد التنبيه: {formatQuantity(product.lowStockThreshold)} {product.unit || (product.category === "أتاي" ? "كرتون" : "قطعة")}
                           </small>
                         </span>
                       </span>
                       <span className="dashboard-low-stock-quantity">
                         <strong dir="ltr">{formatQuantity(product.stock)}</strong>
-                        <small>{product.unit || "طرد"}</small>
+                        <small>{product.unit || (product.category === "أتاي" ? "كرتون" : "قطعة")}</small>
                       </span>
                     </li>
                   ))}
