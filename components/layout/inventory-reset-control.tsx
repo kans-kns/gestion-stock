@@ -12,6 +12,8 @@ import {
   InventoryRefreshAfterResetError,
   useInventory,
 } from "@/components/layout/inventory-provider";
+import { createBrowserSupabase } from "@/lib/supabase/client";
+import { getInventoryErrorMessage, isCurrentUserManager } from "@/services/inventory";
 import type { ResetInventoryResult } from "@/services/inventory";
 
 function formatCount(count: number): string {
@@ -28,12 +30,68 @@ export function InventoryResetControl() {
   const { resetInventory } = useInventory();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const resetInProgress = useRef(false);
+  const permissionRequest = useRef(0);
+  const [canReset, setCanReset] = useState<boolean | null>(null);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<ResetInventoryResult | null>(null);
   const [refreshWarning, setRefreshWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+    const scheduledChecks = new Set<number>();
+    let subscription: ReturnType<
+      ReturnType<typeof createBrowserSupabase>["auth"]["onAuthStateChange"]
+    >["data"]["subscription"] | undefined;
+
+    async function checkPermission() {
+      const requestId = ++permissionRequest.current;
+      try {
+        const isManager = await isCurrentUserManager();
+        if (!isActive || requestId !== permissionRequest.current) return;
+        setCanReset(isManager);
+        setPermissionError(null);
+      } catch (checkError) {
+        if (!isActive || requestId !== permissionRequest.current) return;
+        setCanReset(false);
+        setPermissionError(getInventoryErrorMessage(checkError, "التحقق من صلاحية المدير"));
+      }
+    }
+
+    void Promise.resolve().then(() => {
+      if (!isActive) return;
+      const supabase = createBrowserSupabase();
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (!session) {
+          permissionRequest.current += 1;
+          setCanReset(false);
+          setPermissionError(null);
+        } else if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+          const timer = window.setTimeout(() => {
+            scheduledChecks.delete(timer);
+            void checkPermission();
+          }, 0);
+          scheduledChecks.add(timer);
+        }
+      });
+      subscription = data.subscription;
+      return checkPermission();
+    }).catch((checkError: unknown) => {
+      if (!isActive) return;
+      setCanReset(false);
+      setPermissionError(getInventoryErrorMessage(checkError, "التحقق من صلاحية المدير"));
+    });
+
+    return () => {
+      isActive = false;
+      permissionRequest.current += 1;
+      scheduledChecks.forEach((timer) => window.clearTimeout(timer));
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -96,20 +154,23 @@ export function InventoryResetControl() {
 
   return (
     <section className="admin-tools">
-      <details>
-        <summary>إدارة النظام</summary>
-        <div className="admin-tools-content">
-          <p>إجراءات إدارية تؤثر على بيانات المخزون بالكامل.</p>
-          <button className="button admin-danger-button" onClick={openDialog} type="button">
-            إعادة تعيين المخزون
-          </button>
-        </div>
-      </details>
+      {canReset && (
+        <details>
+          <summary>إدارة النظام</summary>
+          <div className="admin-tools-content">
+            <p>إجراءات إدارية تؤثر على بيانات المخزون بالكامل.</p>
+            <button className="button admin-danger-button" onClick={openDialog} type="button">
+              إعادة تعيين المخزون
+            </button>
+          </div>
+        </details>
+      )}
+      {permissionError && <p className="form-message form-message-error" role="alert">{permissionError}</p>}
 
       {success && (
         <p className="form-message form-message-success admin-reset-success" role="status">
-          تمت إعادة تعيين المخزون بنجاح. حُذفت {formatCount(success.deletedProducts)} منتجات و
-          {" "}{formatCount(success.deletedMovements)} حركة.
+          تمت إعادة تعيين المخزون بنجاح. حُذفت {formatCount(success.deletedMovements)} حركة، وتم الإبقاء على
+          {" "}{formatCount(success.preservedProducts)} منتجًا.
           <button
             aria-label="إغلاق رسالة النجاح"
             onClick={() => setSuccess(null)}
@@ -143,8 +204,8 @@ export function InventoryResetControl() {
         <section className="inventory-reset-card" dir="rtl" role="document">
           <h2 id="inventory-reset-title">تأكيد إعادة تعيين المخزون</h2>
           <p>
-            سيؤدي هذا الإجراء إلى حذف جميع المنتجات وجميع حركات وسجل المخزون.
-            لن تُحذف حسابات المستخدمين أو ملفاتهم الشخصية أو إعدادات التطبيق.
+            سيؤدي هذا الإجراء إلى حذف حركات المخزون لجميع المنتجات مع الإبقاء على المنتجات وبياناتها في القائمة.
+            لن تُحذف حسابات المستخدمين أو ملفاتهم الشخصية.
             لا يمكن التراجع عن هذا الإجراء.
           </p>
 

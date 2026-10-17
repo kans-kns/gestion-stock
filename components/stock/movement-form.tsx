@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useInventory } from "@/components/layout/inventory-provider";
 import { getProductLabel, SearchableProductPicker } from "@/components/stock/filter-controls";
 import type { MovementType } from "@/types/inventory";
@@ -12,6 +11,7 @@ export function MovementForm({ type }: { type: MovementType }) {
   const availableProducts = productStocks.filter((product) => product.active !== false);
   const isEntry = type === "entry";
   const [productId, setProductId] = useState("");
+  const selectedProduct = availableProducts.find((product) => product.id === productId);
   const [productQuery, setProductQuery] = useState(
     "",
   );
@@ -90,11 +90,6 @@ export function MovementForm({ type }: { type: MovementType }) {
               query={productQuery}
               required
             />
-            {isEntry && (
-              <Link className="text-link add-product-link" href="/ajouter-produit">
-                لا تجد المنتج؟ أضف منتجًا
-              </Link>
-            )}
           </div>
           <label className="form-field">
             <span className="movement-field-label">
@@ -110,7 +105,7 @@ export function MovementForm({ type }: { type: MovementType }) {
                 type="number"
                 value={quantity}
               />
-              <span>طرد</span>
+              <span>{selectedProduct?.unit || (selectedProduct?.category === "الحوايج" ? "قطعة" : "كرتون")}</span>
             </div>
           </label>
         </div>

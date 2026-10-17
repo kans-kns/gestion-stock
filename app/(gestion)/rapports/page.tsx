@@ -2,20 +2,26 @@
 
 import { useState } from "react";
 import { useInventory } from "@/components/layout/inventory-provider";
-import { SearchField } from "@/components/stock/filter-controls";
-import { getDashboardSummary, formatQuantity } from "@/services/inventory";
+import { FilterField, SearchField } from "@/components/stock/filter-controls";
+import { getDashboardSummary, formatQuantity, getProductSearchText } from "@/services/inventory";
+import { isProductCategory, productCategories, type ProductCategory } from "@/types/inventory";
 import { Icon } from "@/components/ui/icon";
+
+type CategoryFilter = "all" | ProductCategory;
 
 export default function RapportsPage() {
   const { productStocks, operations, isLoading, error } = useInventory();
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState<CategoryFilter>("all");
   const summary = getDashboardSummary(productStocks, operations);
-  const searchTerm = search.trim().toLocaleLowerCase();
-  const filteredProducts = productStocks.filter((product) =>
-    `${product.name} ${product.unit ?? ""}`.toLocaleLowerCase().includes(searchTerm),
+  const categoryUnits = productCategories.flatMap((item) =>
+    summary.byCategory[item].map((unitSummary) => ({ category: item, ...unitSummary })),
   );
-  const totalIncoming = operations.filter((operation) => operation.type === "entry").reduce((total, operation) => total + operation.quantity, 0);
-  const totalOutgoing = operations.filter((operation) => operation.type === "exit").reduce((total, operation) => total + operation.quantity, 0);
+  const searchTerm = search.trim().toLocaleLowerCase();
+  const filteredProducts = productStocks.filter((product) => {
+    const matchesSearch = getProductSearchText(product).toLocaleLowerCase().includes(searchTerm);
+    return matchesSearch && (category === "all" || product.category === category);
+  });
   return (
     <section className="reports-page">
       <div className="page-heading">
@@ -65,24 +71,25 @@ export default function RapportsPage() {
                 <p>نظرة عامة على إجمالي الكميات المسجلة</p>
               </div>
             </div>
-            <div className="calculation-flow">
-              <div className="report-summary-item">
-                <span className="report-summary-icon report-summary-icon-entry" aria-hidden="true"><Icon name="arrowDown" size={18} /></span>
-                <strong className="calc-entry" dir="ltr">{formatQuantity(totalIncoming)}</strong>
-                <span>إجمالي المداخل · طرد</span>
-              </div>
-              <span className="calc-operator" aria-hidden="true">−</span>
-              <div className="report-summary-item">
-                <span className="report-summary-icon report-summary-icon-exit" aria-hidden="true"><Icon name="arrowUp" size={18} /></span>
-                <strong className="calc-exit" dir="ltr">{formatQuantity(totalOutgoing)}</strong>
-                <span>إجمالي المخارج · طرد</span>
-              </div>
-              <span className="calc-operator" aria-hidden="true">=</span>
-              <div className="report-summary-item report-summary-current">
-                <span className="report-summary-icon report-summary-icon-current" aria-hidden="true"><Icon name="boxes" size={18} /></span>
-                <strong className="calc-total" dir="ltr">{formatQuantity(summary.currentStock)}</strong>
-                <span>المخزون الحالي · طرد</span>
-              </div>
+            <div className="report-category-summary-grid">
+              {categoryUnits.map((item) => (
+                <article className="report-category-summary-card" key={`${item.category}-${item.unit}`}>
+                  <h3>{item.category} · {item.unit}</h3>
+                  <div>
+                    <span>الرصيد الحالي</span>
+                    <strong className="calc-total" dir="ltr">{formatQuantity(item.currentStock)}</strong>
+                  </div>
+                  <div>
+                    <span>إجمالي المداخل</span>
+                    <strong className="calc-entry" dir="ltr">{formatQuantity(item.totalIncoming)}</strong>
+                  </div>
+                  <div>
+                    <span>إجمالي المخارج</span>
+                    <strong className="calc-exit" dir="ltr">{formatQuantity(item.totalOutgoing)}</strong>
+                  </div>
+                </article>
+              ))}
+              {categoryUnits.length === 0 && <p className="empty-state">لا توجد أرصدة مسجلة.</p>}
             </div>
           </section>
           <section className="report-search-panel" aria-labelledby="reports-products-title">
@@ -93,25 +100,46 @@ export default function RapportsPage() {
                 <p>ابحث عن منتج لمراجعة رصيده الحالي</p>
               </div>
             </div>
-            <div className="report-search">
-              <span className="report-search-icon" aria-hidden="true"><Icon name="search" size={19} /></span>
-              <SearchField
-                id="reports-product-search"
-                label="البحث في المنتجات"
-                onChange={setSearch}
-                placeholder="ابحث باسم المنتج أو الوحدة"
-                value={search}
-              />
+            <div className="report-search-controls">
+              <div className="report-search">
+                <span className="report-search-icon" aria-hidden="true"><Icon name="search" size={19} /></span>
+                <SearchField
+                  id="reports-product-search"
+                  label="البحث في المنتجات"
+                  onChange={setSearch}
+                  placeholder="ابحث بالاسم أو العلامة أو المرجع أو المقاس"
+                  value={search}
+                />
+              </div>
+              <FilterField label="فئة المنتج">
+                <select
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    if (value === "all" || isProductCategory(value)) {
+                      setCategory(value);
+                    }
+                  }}
+                  value={category}
+                >
+                  <option value="all">كل الفئات</option>
+                  {productCategories.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </FilterField>
             </div>
           </section>
           <section className="report-list" aria-label="أرصدة المنتجات">
             {filteredProducts.map((product) => (
               <article className="simple-card report-row" key={product.id}>
                 <span className="product-icon" aria-hidden="true"><Icon name="package" size={21} /></span>
-                <strong dir="auto">{product.name}</strong>
+                <div className="report-product-copy">
+                  <strong dir="auto">{product.name}</strong>
+                  <small>{product.category} · {product.category === "أتاي"
+                    ? [product.brand, product.format].filter(Boolean).join(" · ")
+                    : [product.sku, product.garmentType, product.size, product.color].filter(Boolean).join(" · ")}</small>
+                </div>
                 <span className="report-row-value">
                   <b dir="ltr">{formatQuantity(product.stock)}</b>
-                  <small dir="auto">{product.unit || "طرد"}</small>
+                  <small dir="auto">{product.unit || (product.category === "أتاي" ? "كرتون" : "قطعة")}</small>
                 </span>
               </article>
             ))}

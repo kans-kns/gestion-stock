@@ -49,7 +49,15 @@ export function SearchField({
 }
 
 export function getProductLabel(product: Product): string {
-  return product.unit ? `${product.name} · ${product.unit}` : product.name;
+  const details = product.category === "أتاي"
+    ? [product.brand, product.format]
+    : [product.sku, product.garmentType, product.size, product.color];
+  return [
+    product.category,
+    product.name,
+    ...details.filter((value): value is string => Boolean(value)),
+    product.unit,
+  ].filter(Boolean).join(" · ");
 }
 
 interface SearchableProductPickerProps {

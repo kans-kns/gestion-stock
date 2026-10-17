@@ -4,15 +4,22 @@ import { useMemo, useState } from "react";
 import { useInventory } from "@/components/layout/inventory-provider";
 import { FilterField, SearchField, SearchableProductPicker } from "@/components/stock/filter-controls";
 import { OperationsTable } from "@/components/stock/operations-table";
-import { formatQuantity } from "@/services/inventory";
-import type { MovementType } from "@/types/inventory";
+import { formatQuantity, getProductSearchText } from "@/services/inventory";
+import {
+  isProductCategory,
+  productCategories,
+  type MovementType,
+  type ProductCategory,
+} from "@/types/inventory";
 
 type TypeFilter = "all" | MovementType;
+type CategoryFilter = "all" | ProductCategory;
 
 interface OperationFiltersState {
   query: string;
   type: TypeFilter;
   productSearch: string;
+  category: CategoryFilter;
   party: string;
   employeeId: string;
   dateFrom: string;
@@ -25,6 +32,7 @@ const emptyFilters: OperationFiltersState = {
   query: "",
   type: "all",
   productSearch: "",
+  category: "all",
   party: "",
   employeeId: "",
   dateFrom: "",
@@ -87,7 +95,7 @@ export function OperationFilters() {
         const searchableText = [
           operation.reference,
           product?.name ?? "",
-          product?.unit ?? "",
+          product ? getProductSearchText(product) : "",
           operation.party,
           operation.user,
           operation.note,
@@ -96,8 +104,9 @@ export function OperationFilters() {
       }
 
       if (filters.type !== "all" && operation.type !== filters.type) return false;
+      if (filters.category !== "all" && product?.category !== filters.category) return false;
       if (productSearch) {
-        const productText = `${product?.name ?? ""} ${product?.unit ?? ""}`.toLocaleLowerCase();
+        const productText = product ? getProductSearchText(product).toLocaleLowerCase() : "";
         if (!productText.includes(productSearch)) return false;
       }
       if (partyQuery && !normalized(operation.party).includes(partyQuery)) return false;
@@ -170,6 +179,20 @@ export function OperationFilters() {
               products={products}
               query={filters.productSearch}
             />
+          </FilterField>
+          <FilterField label="فئة المنتج">
+            <select
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value === "all" || isProductCategory(value)) {
+                  updateFilter("category", value);
+                }
+              }}
+              value={filters.category}
+            >
+              <option value="all">كل الفئات</option>
+              {productCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
           </FilterField>
         </div>
 

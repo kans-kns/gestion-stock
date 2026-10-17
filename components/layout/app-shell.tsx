@@ -10,7 +10,6 @@ import { Icon } from "@/components/ui/icon";
 const navigation = [
   { href: "/dashboard", label: "لوحة التحكم", icon: "activity" },
   { href: "/produits", label: "المنتجات", icon: "boxes" },
-  { href: "/ajouter-produit", label: "إضافة منتج", icon: "package" },
   { href: "/entrees", label: "المداخل", icon: "arrowDown" },
   { href: "/sorties", label: "المخارج", icon: "arrowUp" },
   { href: "/historique", label: "السجل", icon: "clock" },
@@ -25,7 +24,7 @@ function NavigationLinks({
   onNavigate?: () => void;
 }) {
   return navigation.map(({ href, label, icon }) => {
-    const active = pathname === href;
+    const active = pathname === href || (href === "/produits" && pathname.startsWith("/produits/"));
     return (
       <Link
         aria-current={active ? "page" : undefined}
@@ -45,7 +44,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDialogElement>(null);
-  const pageTitle = navigation.find(({ href }) => href === pathname)?.label ?? "لوحة التحكم";
+  const pageTitle = pathname === "/ajouter-produit"
+    ? "إضافة منتج"
+    : pathname.startsWith("/produits/")
+      ? "تعديل المنتج"
+    : navigation.find(({ href }) => href === pathname)?.label ?? "لوحة التحكم";
 
   useEffect(() => {
     const dialog = mobileMenuRef.current;
